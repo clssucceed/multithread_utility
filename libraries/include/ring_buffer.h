@@ -6,9 +6,8 @@
 #include <vector>
 
 namespace detail {
-template <typename RB, bool is_const>
-class RingBufferIterator {
- public:
+template <typename RB, bool is_const> class RingBufferIterator {
+public:
   // Iterator required types
   using value_type = typename RB::ValueType;
   using pointer =
@@ -47,22 +46,19 @@ class RingBufferIterator {
   inline bool operator!=(RingBufferIterator<RB, C> const &rhs) const {
     return index_ != rhs.index_;
   }
-  operator bool() const {
-    return buffer_ && index_ != buffer_->head_;
-  }
+  operator bool() const { return buffer_ && index_ != buffer_->head_; }
 
   friend RB;
   friend class RingBufferIterator<RB, !is_const>;
 
- private:
+private:
   RingBufferPointer buffer_ = nullptr;
   int index_;
 };
-}  // namespace detail
+} // namespace detail
 
-template <typename T>
-class RingBuffer {
- public:
+template <typename T> class RingBuffer {
+public:
   using ValueType = T;
   using Type = RingBuffer<T>;
   using Iterator = detail::RingBufferIterator<Type, false>;
@@ -71,6 +67,7 @@ class RingBuffer {
   friend class detail::RingBufferIterator<Type, false>;
   friend class detail::RingBufferIterator<Type, true>;
 
+  // REVIEW(clssucceed@dji.com): why is max_length_ not equal to capacity?
   explicit RingBuffer(int capacity = 5) : max_length_(capacity + 1) {}
 
   int Next(int index) const { return (index + 1) % max_length_; }
@@ -78,6 +75,7 @@ class RingBuffer {
 
   Iterator begin() { return Iterator(this, tail_); }
   ConstIterator begin() const { return ConstIterator(this, tail_); }
+  // REVIEW(clssucced@github.com): end should be Next(head_)?
   Iterator end() { return Iterator(this, head_); }
   ConstIterator end() const { return ConstIterator(this, head_); }
   ConstIterator cbegin() const { return ConstIterator(this, tail_); }
@@ -85,12 +83,15 @@ class RingBuffer {
 
   ValueType &Front() { return data_[tail_]; }
   ValueType const &Front() const { return data_[tail_]; }
+  // REVIEW(clssucceed@github.com): Next(head_) should be head_?
   ValueType &Back() { return data_[Next(head_)]; }
   ValueType const &Back() const { return data_[Next(head_)]; }
   bool Full() const { return Next(head_) == tail_; }
   bool Empty() const { return head_ == tail_; }
   int Capacity() const { return max_length_ - 1; };
   int Size() const { (head_ + max_length_ - tail_) % max_length_; };
+  // remove elements before iter (not including the element which iter points
+  // to)
   void Remove(ConstIterator const &iter) { tail_ = iter.index_; }
 
   T Pop() {
@@ -98,14 +99,20 @@ class RingBuffer {
 
     auto &item = data_[tail_];
     tail_ = Next(tail_);
+    // REVIEW(clssucceed@github.com): why return rvalue?
     return std::move(item);
   }
   void Pop(T &item) { item = Pop(); }
   void Push(T item) {
-    if (Full()) Pop();
+    if (Full())
+      Pop();
     if (data_.size() < max_length_)
+      // REVIEW(clssucceed@github.com): why std::move? Even if std::move, the
+      // element will also be copied to vector buffer
       data_.push_back(std::move(item));
     else
+      // REVIEW(clssucceed@github.com): why std::move? Even if std::move, the
+      // element will also be copied to memory of head_?
       data_[head_] = std::move(item);
     head_ = Next(head_);
   }
@@ -118,7 +125,7 @@ class RingBuffer {
     return false;
   }
 
- private:
+private:
   std::vector<T> data_;
   int head_ = 0;
   int tail_ = 0;
